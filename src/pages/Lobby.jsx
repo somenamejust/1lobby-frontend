@@ -6,7 +6,26 @@ import axios from '../api/axiosConfig';
 
 // --- КОНСТАНТЫ ---
 const GAMES = ["All games", "CS2", "Dota 2", "Valorant", "Fortnite", "Custom Game"];
-const MODES = ["All modes", "1v1", "2v2", "3v3", "5v5", "Free-for-all"];
+
+// 🆕 РЕЖИМЫ ДЛЯ DOTA 2 (отдельная константа)
+const DOTA2_MODES = [
+  { label: "All Pick", value: "All Pick", gameMode: 22, slots: 10 },
+  { label: "Captains Mode", value: "Captains Mode", gameMode: 2, slots: 10 },
+  { label: "Random Draft", value: "Random Draft", gameMode: 3, slots: 10 },
+  { label: "Single Draft", value: "Single Draft", gameMode: 4, slots: 10 },
+  { label: "All Random", value: "All Random", gameMode: 5, slots: 10 },
+  { label: "Captains Draft", value: "Captains Draft", gameMode: 9, slots: 10 },
+  { label: "Least Played", value: "Least Played", gameMode: 12, slots: 10 },
+  { label: "Mid Only", value: "Mid Only", gameMode: 21, slots: 10 },
+  { label: "1v1 Solo Mid", value: "1v1 Solo Mid", gameMode: 21, slots: 2 }, // 🎯 ОСОБЫЙ РЕЖИМ
+  { label: "Turbo", value: "Turbo", gameMode: 23, slots: 10 },
+  { label: "Reverse Captain Mode", value: "Reverse Captain Mode", gameMode: 8, slots: 10 },
+  { label: "All Random Deathmatch", value: "All Random Deathmatch", gameMode: 16, slots: 10 },
+];
+
+// РЕЖИМЫ ДЛЯ ДРУГИХ ИГР (универсальные)
+const GENERIC_MODES = ["All modes", "1v1", "2v2", "3v3", "5v5", "Free-for-all"];
+
 const REGIONS = ["All regions", "EU", "NA", "ASIA", "RU"];
 const PRICE_OPTIONS = [
   { value: "all", label: "Any price" },
@@ -16,12 +35,19 @@ const PRICE_OPTIONS = [
   { value: "gt20", label: "> $20", min: 20, max: Infinity },
 ];
 
+// 🆕 КОНФИГУРАЦИЯ РЕЖИМОВ ДЛЯ ДРУГИХ ИГР
 const MODE_CONFIG = {
   '1v1': { maxPlayers: 2, teams: { A: 1, B: 1 } },
   '2v2': { maxPlayers: 4, teams: { A: 2, B: 2 } },
   '3v3': { maxPlayers: 6, teams: { A: 3, B: 3 } },
   '5v5': { maxPlayers: 10, teams: { A: 5, B: 5 } },
   'Free-for-all': { maxPlayers: 16, teams: { FFA: 16 } },
+};
+
+// 🆕 КОНФИГУРАЦИЯ ДЛЯ DOTA 2 (по количеству слотов)
+const DOTA2_MODE_CONFIG = {
+  2: { maxPlayers: 2, teams: { A: 1, B: 1 } },   // 1v1 Solo Mid
+  10: { maxPlayers: 10, teams: { A: 5, B: 5 } }, // Все остальные режимы
 };
 
 export const initialLobbies = [];
@@ -39,11 +65,46 @@ export default function Lobby() {
   });
   const [showCreate, setShowCreate] = useState(false);
   const [createForm, setCreateForm] = useState({
-    title: "", game: "CS2", mode: "5v5", region: "EU", entryFee: 1, lobbyType: 'public', password: '',
+    title: "", 
+    game: "CS2", 
+    mode: "5v5", 
+    region: "EU", 
+    entryFee: 1, 
+    lobbyType: 'public', 
+    password: '',
+    dotaGameMode: 22, // 🆕 ID режима для Dota 2
   });
 
   const { user, joinLobbySession } = useAuth();
   const navigate = useNavigate();
+
+    // 🆕 ДИНАМИЧЕСКИЙ СПИСОК РЕЖИМОВ (зависит от выбранной игры)
+  const availableModes = useMemo(() => {
+    if (createForm.game === "Dota 2") {
+      return DOTA2_MODES;
+    }
+    return GENERIC_MODES;
+  }, [createForm.game]);
+
+  // 🆕 useEffect: Сброс режима при смене игры
+  useEffect(() => {
+    if (createForm.game === "Dota 2") {
+      // При переключении на Dota 2 - ставим первый режим из списка
+      const firstDotaMode = DOTA2_MODES[0];
+      setCreateForm(prev => ({
+        ...prev,
+        mode: firstDotaMode.value,
+        dotaGameMode: firstDotaMode.gameMode,
+      }));
+    } else {
+      // При переключении на другую игру - ставим стандартный режим
+      setCreateForm(prev => ({
+        ...prev,
+        mode: "5v5",
+        dotaGameMode: 22, // На всякий случай
+      }));
+    }
+  }, [createForm.game]);
 
     // --- 👇 ОБНОВЛЕННЫЙ useEffect 👇 ---
   useEffect(() => {
@@ -106,12 +167,38 @@ export default function Lobby() {
 
   const handleCreateSubmit = async (e) => {
     e.preventDefault();
-    if (!user) { toast.error("Нужно войти в аккаунт"); return; }
-    const config = MODE_CONFIG[createForm.mode];
-    if (!config) { toast.error("Выбран неверный режим"); return; }
-    const entryFee = Number(createForm.entryFee);
-    if (user.balance < entryFee) { toast.error("Недостаточно средств для создания лобби!"); return; }
+    if (!user) { 
+      toast.error("Нужно войти в аккаунт"); 
+      return; 
+    }
 
+    // 🆕 ОПРЕДЕЛЯЕМ КОНФИГУРАЦИЮ В ЗАВИСИМОСТИ ОТ ИГРЫ
+    let config;
+    if (createForm.game === "Dota 2") {
+      // Для Dota 2 ищем конфигурацию по количеству слотов
+      const selectedMode = DOTA2_MODES.find(m => m.value === createForm.mode);
+      if (!selectedMode) {
+        toast.error("Выбран неверный режим для Dota 2");
+        return;
+      }
+      config = DOTA2_MODE_CONFIG[selectedMode.slots];
+    } else {
+      // Для других игр используем стандартную конфигурацию
+      config = MODE_CONFIG[createForm.mode];
+    }
+
+    if (!config) { 
+      toast.error("Выбран неверный режим"); 
+      return; 
+    }
+
+    const entryFee = Number(createForm.entryFee);
+    if (user.balance < entryFee) { 
+      toast.error("Недостаточно средств для создания лобби!"); 
+      return; 
+    }
+
+    // 🆕 ДОБАВЛЯЕМ dotaGameMode в данные лобби
     const newLobbyData = {
       id: Date.now(),
       title: createForm.title || `${createForm.game} — ${createForm.mode}`,
@@ -130,7 +217,8 @@ export default function Lobby() {
       ),
       spectators: [], 
       chat: [],
-      bannedUsers: []
+      bannedUsers: [],
+      dotaGameMode: createForm.dotaGameMode, // 🆕 Добавляем ID режима Dota 2
     };
     
     const firstSlotIndex = newLobbyData.slots.findIndex(s => s.user === null);
@@ -146,12 +234,33 @@ export default function Lobby() {
       const createdLobby = response.data;
       
       setLobbies(currentLobbies => [createdLobby, ...currentLobbies]);
-      joinLobbySession(createdLobby.id); // Обновляем сессию для создателя
+      joinLobbySession(createdLobby.id);
       navigate(`/lobby/${createdLobby.id}`);
       setShowCreate(false);
     } catch (error) {
       console.error("Ошибка при создании лобби:", error);
       toast.error(error.response?.data?.message || "Не удалось создать лобби");
+    }
+  };
+
+    // 🆕 ОБРАБОТЧИК СМЕНЫ РЕЖИМА (для Dota 2 обновляем dotaGameMode)
+  const handleModeChange = (e) => {
+    const selectedValue = e.target.value;
+    
+    if (createForm.game === "Dota 2") {
+      const selectedMode = DOTA2_MODES.find(m => m.value === selectedValue);
+      if (selectedMode) {
+        setCreateForm(prev => ({
+          ...prev,
+          mode: selectedValue,
+          dotaGameMode: selectedMode.gameMode,
+        }));
+      }
+    } else {
+      setCreateForm(prev => ({
+        ...prev,
+        mode: selectedValue,
+      }));
     }
   };
 
@@ -191,7 +300,28 @@ export default function Lobby() {
               </label>
               <div className="grid grid-cols-2 gap-3">
                 <label className="flex flex-col text-gray-300">Игра<select value={createForm.game} onChange={(e) => setCreateForm((p) => ({ ...p, game: e.target.value }))} className="mt-1 px-3 py-2 bg-dark-bg border border-gray-600 rounded-md text-gray-200">{GAMES.filter(g => g !== 'All games').map(g => (<option key={g} value={g}>{g}</option>))}</select></label>
-                <label className="flex flex-col text-gray-300">Режим<select value={createForm.mode} onChange={(e) => setCreateForm((p) => ({ ...p, mode: e.target.value }))} className="mt-1 px-3 py-2 bg-dark-bg border border-gray-600 rounded-md text-gray-200">{MODES.filter(m => m !== 'All modes').map(m => (<option key={m} value={m}>{m}</option>))}</select></label>
+                <label className="flex flex-col text-gray-300">
+                  Режим
+                  <select 
+                    value={createForm.mode} 
+                    onChange={handleModeChange}
+                    className="mt-1 px-3 py-2 bg-dark-bg border border-gray-600 rounded-md text-gray-200"
+                  >
+                    {createForm.game === "Dota 2" ? (
+                      // 🆕 РЕЖИМЫ ДЛЯ DOTA 2
+                      DOTA2_MODES.map(mode => (
+                        <option key={mode.value} value={mode.value}>
+                          {mode.label}
+                        </option>
+                      ))
+                    ) : (
+                      // РЕЖИМЫ ДЛЯ ДРУГИХ ИГР
+                      GENERIC_MODES.filter(m => m !== 'All modes').map(m => (
+                        <option key={m} value={m}>{m}</option>
+                      ))
+                    )}
+                  </select>
+                </label>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <label className="flex flex-col text-gray-300">Регион<select value={createForm.region} onChange={(e) => setCreateForm((p) => ({ ...p, region: e.target.value }))} className="mt-1 px-3 py-2 bg-dark-bg border border-gray-600 rounded-md text-gray-200">{REGIONS.filter(r => r !== 'All regions').map(r => (<option key={r} value={r}>{r}</option>))}</select></label>
@@ -264,7 +394,7 @@ export default function Lobby() {
                 onChange={handleFilterChange}
                 className="pl-3 pr-8 py-2 bg-dark-bg border border-gray-600 rounded-md text-gray-200 appearance-none focus:outline-none focus:ring-2 focus:ring-brand-blue"
               >
-                {MODES.map((m) => (<option key={m} value={m}>{m}</option>))}
+                {GENERIC_MODES.map((m) => (<option key={m} value={m}>{m}</option>))}
               </select>
               <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-400">
                 <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>

@@ -8,6 +8,7 @@ import { io } from "socket.io-client";
 import UserProfileModal from '../components/UserProfileModal';
 import UserActionsDropdown from '../components/UserActionsDropdown';
 import GameInProgressModal from '../components/GameInProgressModal';
+import MatchResultsModal from '../components/MatchResultsModal';
 import cs2Logo from '../assets/images/cs2_logo2.png';
 import cs2Bg from '../assets/images/Cs2dust2.png';
 import dota2Bg from '../assets/images/dota2_bg3.jpg';
@@ -48,6 +49,8 @@ export default function LobbyIn() {
   const [chatMessage, setChatMessage] = useState('');
   const [modalUser, setModalUser] = useState(null);
   const [timer, setTimer] = useState(null);
+
+  const [showResults, setShowResults] = useState(false);
   
   const [menuData, setMenuData] = useState({ targetUser: null, position: null });
   const dropdownRef = useRef(null);
@@ -116,19 +119,29 @@ export default function LobbyIn() {
 
   // --- 3. useEffect: Этот эффект следит за состоянием `lobby` и решает, нужно ли перенаправлять пользователя.
   useEffect(() => {
-      // Этот эффект теперь отвечает ТОЛЬКО за редирект после завершения игры.
-      if (!lobby || isRedirecting || lobby.status !== 'finished') return;
+    // Этот эффект следит за состоянием `lobby` и показывает результаты
+    if (!lobby || isRedirecting) return;
 
+    // 🆕 ЕСЛИ ИГРА ЗАВЕРШЕНА - ПОКАЗЫВАЕМ РЕЗУЛЬТАТЫ 5 СЕКУНД
+    if (lobby.status === 'finished') {
+      setShowResults(true);
+      refreshUser(); // Обновляем баланс
       setIsRedirecting(true);
-      toast.success("Игра завершена. Возвращение в лобби...");
       
-      refreshUser().then(() => {
-          setTimeout(() => {
-              leaveLobbySession();
-              navigate('/lobby');
-          }, 4000);
-      });
-  }, [lobby, isRedirecting, navigate, leaveLobbySession, refreshUser]);
+      // Показываем результаты 5 секунд
+      toast.success(`🏆 Команда ${lobby.winner} победила!`, { duration: 60000 });
+      
+      setTimeout(() => {
+        // НЕ вызываем leaveLobbySession() - просто выходим из лобби
+        // Лобби останется в базе со статусом finished
+        navigate('/lobby');
+      }, 60000); // 5 секунд на просмотр результатов
+      
+      return;
+    }
+
+    // Остальная логика без изменений
+  }, [lobby, isRedirecting, navigate, refreshUser]);
 
   // --- 4. useEffect: эффект для МЕНЮ
   useEffect(() => {
@@ -278,8 +291,16 @@ export default function LobbyIn() {
       }
   };
 
+  // 🆕 УДАЛЯЕМ handleDeclareWinner, т.к. результат приходит автоматически от бота
+  // Оставляем только для Custom Game
   const handleDeclareWinner = async (winningTeam) => {
       if (!user || !lobby || user.email !== lobby.host.email) return;
+
+      // Только для Custom Game можно вручную выбрать победителя
+      if (lobby.game !== 'Custom Game') {
+        toast.error("Результат определяется автоматически");
+        return;
+      }
 
       try {
           const payload = { 
@@ -287,11 +308,7 @@ export default function LobbyIn() {
               winningTeam: winningTeam 
           };
           const response = await axios.post(`/api/lobbies/${lobby.id}/declare-winner`, payload);
-
-          // The toast now uses the message directly from the server's response
           toast.success(response.data.message);
-          
-          // The redirection logic remains in the useEffect hook, so we don't need to do anything else here.
 
       } catch (error) {
           console.error("Ошибка при завершении игры:", error);
@@ -363,16 +380,36 @@ export default function LobbyIn() {
       }
   };
 
+  const handleCloseResults = () => {
+    setShowResults(false);
+    navigate('/lobby');
+  };
+
   const hostWinnerControls = (
-    user?.email === lobby?.host.email && lobby?.status === 'in_progress' && (
-      <div className="flex flex-col items-center gap-3">
-        <p className="font-semibold">Определите победителя:</p>
-        <div className="flex gap-4">
-          <button onClick={() => handleDeclareWinner('A')} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Победа Команды А</button>
-          <button onClick={() => handleDeclareWinner('B')} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Победа Команды B</button>
+      user?.email === lobby?.host.email && lobby?.status === 'in_progress' && (
+        <div className="flex flex-col items-center gap-3">
+          {/* Для Dota 2 показываем сообщение о автоматическом определении */}
+          {lobby.game === 'Dota 2' ? (
+            <div className="text-center">
+              <p className="text-lg font-semibold text-white mb-2">Игра в процессе</p>
+              <p className="text-gray-400">Результат будет определен автоматически после завершения матча в Dota 2</p>
+              <div className="mt-4 flex items-center justify-center gap-2">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-brand-blue"></div>
+                <span className="text-gray-400">Ожидание результата...</span>
+              </div>
+            </div>
+          ) : (
+            // Для Custom Game оставляем ручной выбор победителя
+            <>
+              <p className="font-semibold">Определите победителя:</p>
+              <div className="flex gap-4">
+                <button onClick={() => handleDeclareWinner('A')} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Победа Команды А</button>
+                <button onClick={() => handleDeclareWinner('B')} className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Победа Команды B</button>
+              </div>
+            </>
+          )}
         </div>
-      </div>
-    )
+      )
   );
 
 
@@ -691,13 +728,21 @@ return (
               <h2 className="text-xl font-semibold mb-4 border-b border-gray-700 pb-2 text-white font-orbitron text-center">Friends</h2>
               {/* Здесь будет контент для списка друзей */}
               <div className="flex-grow text-gray-500 flex items-center justify-center">
-                <p>Скоро здесь появятся друзья...</p>
+                <p>Friends will be here soon...</p>
               </div>
             </div>
           </div> 
 
         </div>
       </div>
+
+      {/* 🆕 МОДАЛЬНОЕ ОКНО С РЕЗУЛЬТАТАМИ */}
+      {showResults && (
+        <MatchResultsModal 
+          lobby={lobby} 
+          onClose={handleCloseResults} 
+        />
+      )}
     </>
   );
 }

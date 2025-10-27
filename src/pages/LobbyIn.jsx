@@ -119,29 +119,23 @@ export default function LobbyIn() {
 
   // --- 3. useEffect: Этот эффект следит за состоянием `lobby` и решает, нужно ли перенаправлять пользователя.
   useEffect(() => {
-    // Этот эффект следит за состоянием `lobby` и показывает результаты
-    if (!lobby || isRedirecting) return;
+    // Редирект после завершения игры
+    if (!lobby || isRedirecting || lobby.status !== 'finished') return;
 
-    // 🆕 ЕСЛИ ИГРА ЗАВЕРШЕНА - ПОКАЗЫВАЕМ РЕЗУЛЬТАТЫ 5 СЕКУНД
-    if (lobby.status === 'finished') {
-      setShowResults(true);
-      refreshUser(); // Обновляем баланс
-      setIsRedirecting(true);
-      
-      // Показываем результаты 5 секунд
-      toast.success(`🏆 Команда ${lobby.winner} победила!`, { duration: 60000 });
-      
-      setTimeout(() => {
-        // НЕ вызываем leaveLobbySession() - просто выходим из лобби
-        // Лобби останется в базе со статусом finished
-        navigate('/lobby');
-      }, 60000); // 5 секунд на просмотр результатов
-      
-      return;
-    }
-
-    // Остальная логика без изменений
-  }, [lobby, isRedirecting, navigate, refreshUser]);
+    setIsRedirecting(true);
+    
+    // 🆕 УБИРАЕМ АВТОМАТИЧЕСКИЙ РЕДИРЕКТ
+    // Пользователь сам закроет модальное окно
+    
+    // toast.success("Игра завершена. Возвращение в лобби...");
+    // refreshUser().then(() => {
+    //   setTimeout(() => {
+    //     leaveLobbySession();
+    //     navigate('/lobby');
+    //   }, 4000);
+    // });
+    
+  }, [lobby, isRedirecting]);
 
   // --- 4. useEffect: эффект для МЕНЮ
   useEffect(() => {
@@ -533,11 +527,19 @@ return (
                 {/* --- Колонка Команды А --- */}
                 <div className="w-full">
                   <h3 className="font-bold font-orbitron text-lg mb-2 text-blue-400 text-center"
-                  style={{ textShadow: "1px 1px 3px rgba(0,0,0,0.7)" }}
-                  >Team A</h3>
+                    style={{ textShadow: "1px 1px 3px rgba(0,0,0,0.7)" }}
+                  >
+                    {lobby.game === 'Dota 2' ? 'Radiant' : 'Team A'}
+                  </h3>
                   <div className="space-y-2">
                     {(lobby.slots ?? [])
-                      .filter(s => s.team === 'A')
+                      .filter(s => {
+                        // 🆕 УНИВЕРСАЛЬНАЯ ФИЛЬТРАЦИЯ
+                        if (lobby.game === 'Dota 2') {
+                          return s.team === 'Radiant';
+                        }
+                        return s.team === 'A';
+                      })
                       .map((slot, index) => (
                         <div className="max-w-xs mx-auto">
                           <div 
@@ -597,11 +599,19 @@ return (
                 {/* --- Колонка Команды B --- */}
                 <div className="w-full">
                   <h3 className="font-bold font-orbitron text-lg mb-2 text-red-500 text-center"
-                  style={{ textShadow: "1px 1px 3px rgba(0,0,0,0.7)" }}
-                  >Team B</h3>
+                    style={{ textShadow: "1px 1px 3px rgba(0,0,0,0.7)" }}
+                  >
+                    {lobby.game === 'Dota 2' ? 'Dire' : 'Team B'}
+                  </h3>
                   <div className="space-y-2">
                     {(lobby.slots ?? [])
-                      .filter(s => s.team === 'B')
+                      .filter(s => {
+                        // 🆕 УНИВЕРСАЛЬНАЯ ФИЛЬТРАЦИЯ
+                        if (lobby.game === 'Dota 2') {
+                          return s.team === 'Dire';
+                        }
+                        return s.team === 'B';
+                      })
                       .map((slot, index) => (
                         <div className="max-w-xs mx-auto">
                           <div 

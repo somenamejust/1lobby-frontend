@@ -211,11 +211,25 @@ export default function Lobby() {
     if (createForm.game === "Dota 2") {
       // Для Dota 2 ищем конфигурацию по количеству слотов
       const selectedMode = DOTA2_MODES.find(m => m.value === createForm.mode);
+      
+      console.log('🔍 [Dota 2 Debug]');
+      console.log('Selected mode:', createForm.mode);
+      console.log('Found mode object:', selectedMode);
+      console.log('Slots:', selectedMode?.slots);
+      
       if (!selectedMode) {
         toast.error("Выбран неверный режим для Dota 2");
         return;
       }
+      
       config = DOTA2_MODE_CONFIG[selectedMode.slots];
+      console.log('Config:', config);
+      
+      if (!config) {
+        console.error('❌ Config not found for slots:', selectedMode.slots);
+        toast.error("Ошибка конфигурации режима");
+        return;
+      }
     } else {
       // Для других игр используем стандартную конфигурацию
       config = MODE_CONFIG[createForm.mode];
@@ -232,7 +246,7 @@ export default function Lobby() {
       return; 
     }
 
-    // 🆕 ДОБАВЛЯЕМ dotaGameMode в данные лобби
+    // 🆕 ДОБАВЛЯЕМ dotaGameMode И dotaRegion в данные лобби
     const newLobbyData = {
       id: Date.now(),
       title: createForm.title || `${createForm.game} — ${createForm.mode}`,
@@ -253,8 +267,11 @@ export default function Lobby() {
       chat: [],
       bannedUsers: [],
       dotaGameMode: createForm.dotaGameMode,
-      dotaRegion: createForm.dotaRegion, 
+      dotaRegion: createForm.dotaRegion,
     };
+    
+    console.log('📦 Created lobby data:', newLobbyData);
+    console.log('📊 Slots created:', newLobbyData.slots);
     
     const firstSlotIndex = newLobbyData.slots.findIndex(s => s.user === null);
     if (firstSlotIndex !== -1) {
@@ -340,7 +357,7 @@ export default function Lobby() {
   }, [lobbies, filters]);
 
   if (isLoading) {
-    return <div className="p-8 text-center font-semibold text-gray-500">Загрузка лобби...</div>;
+    return <div className="p-8 text-center font-semibold text-gray-500">Loading...</div>;
   }
 
   return (
@@ -349,15 +366,15 @@ export default function Lobby() {
       {showCreate && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50">
           <div className="bg-dark-surface w-full max-w-xl p-6 rounded-lg shadow-lg border border-gray-700">
-            <h2 className="text-xl font-semibold mb-4 text-white">Создать лобби</h2>
+            <h2 className="text-xl font-semibold mb-4 text-white">Create lobby</h2>
             <form onSubmit={handleCreateSubmit} className="grid grid-cols-1 gap-4">
-              <label className="flex flex-col text-gray-300">Название лобби
+              <label className="flex flex-col text-gray-300">Name
                 <input value={createForm.title} onChange={(e) => setCreateForm((p) => ({ ...p, title: e.target.value }))} placeholder="Введите название" className="mt-1 px-3 py-2 bg-dark-bg border border-gray-600 rounded-md text-gray-200 focus:ring-brand-blue focus:border-brand-blue"/>
               </label>
               <div className="grid grid-cols-2 gap-3">
-                <label className="flex flex-col text-gray-300">Игра<select value={createForm.game} onChange={(e) => setCreateForm((p) => ({ ...p, game: e.target.value }))} className="mt-1 px-3 py-2 bg-dark-bg border border-gray-600 rounded-md text-gray-200">{GAMES.filter(g => g !== 'All games').map(g => (<option key={g} value={g}>{g}</option>))}</select></label>
+                <label className="flex flex-col text-gray-300">Game<select value={createForm.game} onChange={(e) => setCreateForm((p) => ({ ...p, game: e.target.value }))} className="mt-1 px-3 py-2 bg-dark-bg border border-gray-600 rounded-md text-gray-200">{GAMES.filter(g => g !== 'All games').map(g => (<option key={g} value={g}>{g}</option>))}</select></label>
                 <label className="flex flex-col text-gray-300">
-                  Режим
+                  Mode
                   <select 
                     value={createForm.mode} 
                     onChange={handleModeChange}
@@ -372,8 +389,8 @@ export default function Lobby() {
                 </label>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <label className="flex flex-col text-gray-300">
-                  Регион
+                  <label className="flex flex-col text-gray-300">
+                  Region
                   <select 
                     value={createForm.region} 
                     onChange={handleRegionChange}
@@ -386,19 +403,19 @@ export default function Lobby() {
                     ))}
                   </select>
                 </label>
-                <label className="flex flex-col text-gray-300">Вход (USD)<input type="number" step="0.01" value={createForm.entryFee} onChange={(e) => setCreateForm((p) => ({ ...p, entryFee: e.target.value }))} className="mt-1 px-3 py-2 bg-dark-bg border border-gray-600 rounded-md text-gray-200"/></label>
+                <label className="flex flex-col text-gray-300">Enrty (USD)<input type="number" step="0.01" value={createForm.entryFee} onChange={(e) => setCreateForm((p) => ({ ...p, entryFee: e.target.value }))} className="mt-1 px-3 py-2 bg-dark-bg border border-gray-600 rounded-md text-gray-200"/></label>
               </div>
               <div className="border-t border-gray-700 pt-4">
-                <h3 className="text-md font-semibold mb-2 text-white">Тип лобби</h3>
+                <h3 className="text-md font-semibold mb-2 text-white">Lobby Type</h3>
                 <div className="flex items-center gap-6 mb-3 text-gray-300">
-                  <label className="flex items-center gap-2 cursor-pointer"><input type="radio" name="lobbyType" value="public" checked={createForm.lobbyType === 'public'} onChange={(e) => setCreateForm(p => ({...p, lobbyType: e.target.value}))}/>Публичное</label>
-                  <label className="flex items-center gap-2 cursor-pointer"><input type="radio" name="lobbyType" value="private" checked={createForm.lobbyType === 'private'} onChange={(e) => setCreateForm(p => ({...p, lobbyType: e.target.value}))}/>Приватное</label>
+                  <label className="flex items-center gap-2 cursor-pointer"><input type="radio" name="lobbyType" value="public" checked={createForm.lobbyType === 'public'} onChange={(e) => setCreateForm(p => ({...p, lobbyType: e.target.value}))}/>Public</label>
+                  <label className="flex items-center gap-2 cursor-pointer"><input type="radio" name="lobbyType" value="private" checked={createForm.lobbyType === 'private'} onChange={(e) => setCreateForm(p => ({...p, lobbyType: e.target.value}))}/>Private</label>
                 </div>
-                {createForm.lobbyType === 'private' && (<label className="flex flex-col text-gray-300">Пароль лобби<input type="password" value={createForm.password} onChange={(e) => setCreateForm(p => ({ ...p, password: e.target.value }))} placeholder="Введите пароль" className="mt-1 px-3 py-2 bg-dark-bg border border-gray-600 rounded-md text-gray-200"/></label>)}
+                {createForm.lobbyType === 'private' && (<label className="flex flex-col text-gray-300">Password<input type="password" value={createForm.password} onChange={(e) => setCreateForm(p => ({ ...p, password: e.target.value }))} placeholder="Введите пароль" className="mt-1 px-3 py-2 bg-dark-bg border border-gray-600 rounded-md text-gray-200"/></label>)}
               </div>
               <div className="flex items-center justify-end gap-2 mt-3 border-t border-gray-700 pt-4">
-                <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-md">Отмена</button>
-                <button type="submit" className="px-4 py-2 bg-brand-blue hover:bg-blue-400 text-white rounded-md">Создать</button>
+                <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded-md">Cancel</button>
+                <button type="submit" className="px-4 py-2 bg-brand-blue hover:bg-blue-400 text-white rounded-md">Create</button>
               </div>
             </form>
           </div>

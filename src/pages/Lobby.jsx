@@ -7,6 +7,9 @@ import axios from '../api/axiosConfig';
 // --- КОНСТАНТЫ ---
 const GAMES = ["All games", "CS2", "Dota 2", "Valorant", "Fortnite", "Custom Game"];
 
+// РЕЖИМЫ ДЛЯ ДРУГИХ ИГР (универсальные)
+const GENERIC_MODES = ["All modes", "1v1", "2v2", "3v3", "5v5", "Free-for-all"];
+
 // 🆕 РЕЖИМЫ ДЛЯ DOTA 2 (отдельная константа)
 const DOTA2_MODES = [
   { label: "All Pick", value: "All Pick", gameMode: 22, slots: 10 },
@@ -23,10 +26,27 @@ const DOTA2_MODES = [
   { label: "All Random Deathmatch", value: "All Random Deathmatch", gameMode: 16, slots: 10 },
 ];
 
-// РЕЖИМЫ ДЛЯ ДРУГИХ ИГР (универсальные)
-const GENERIC_MODES = ["All modes", "1v1", "2v2", "3v3", "5v5", "Free-for-all"];
-
 const REGIONS = ["All regions", "EU", "NA", "ASIA", "RU"];
+
+// 🆕 РЕГИОНЫ ДЛЯ DOTA 2
+const DOTA2_REGIONS = [
+  { label: "US West", value: "US West", region: 1 },
+  { label: "US East", value: "US East", region: 2 },
+  { label: "Europe West", value: "Europe West", region: 3 },
+  { label: "Singapore", value: "Singapore", region: 4 },
+  { label: "Dubai", value: "Dubai", region: 5 },
+  { label: "Stockholm", value: "Stockholm", region: 6 },
+  { label: "Brazil", value: "Brazil", region: 7 },
+  { label: "Austria", value: "Austria", region: 8 },
+  { label: "Australia", value: "Australia", region: 9 },
+  { label: "South Africa", value: "South Africa", region: 10 },
+  { label: "Chile", value: "Chile", region: 11 },
+  { label: "Peru", value: "Peru", region: 12 },
+  { label: "Argentina", value: "Argentina", region: 13 },
+  { label: "India", value: "India", region: 14 },
+  { label: "Japan", value: "Japan", region: 15 }
+];
+
 const PRICE_OPTIONS = [
   { value: "all", label: "Any price" },
   { value: "lt1", label: "< $1", min: 0, max: 1 },
@@ -46,8 +66,8 @@ const MODE_CONFIG = {
 
 // 🆕 КОНФИГУРАЦИЯ ДЛЯ DOTA 2 (по количеству слотов)
 const DOTA2_MODE_CONFIG = {
-  2: { maxPlayers: 2, teams: { A: 1, B: 1 } },   // 1v1 Solo Mid
-  10: { maxPlayers: 10, teams: { A: 5, B: 5 } }, // Все остальные режимы
+  2: { maxPlayers: 2, teams: { Radiant: 1, Dire: 1 } },   // 1v1 Solo Mid
+  10: { maxPlayers: 10, teams: { Radiant: 5, Dire: 5 } }, // Все остальные режимы
 };
 
 export const initialLobbies = [];
@@ -73,6 +93,7 @@ export default function Lobby() {
     lobbyType: 'public', 
     password: '',
     dotaGameMode: 22, // 🆕 ID режима для Dota 2
+    dotaRegion: 3, 
   });
 
   const { user, joinLobbySession } = useAuth();
@@ -86,15 +107,26 @@ export default function Lobby() {
     return GENERIC_MODES;
   }, [createForm.game]);
 
+    // 🆕 ДИНАМИЧЕСКИЙ СПИСОК РЕГИОНОВ
+  const availableRegions = useMemo(() => {
+    if (createForm.game === "Dota 2") {
+      return DOTA2_REGIONS;
+    }
+    return REGIONS;
+  }, [createForm.game]);
+
   // 🆕 useEffect: Сброс режима при смене игры
   useEffect(() => {
     if (createForm.game === "Dota 2") {
       // При переключении на Dota 2 - ставим первый режим из списка
       const firstDotaMode = DOTA2_MODES[0];
+      const firstDotaRegion = DOTA2_REGIONS[0];
       setCreateForm(prev => ({
         ...prev,
         mode: firstDotaMode.value,
         dotaGameMode: firstDotaMode.gameMode,
+        region: firstDotaRegion.value,        // 🆕
+        dotaRegion: firstDotaRegion.region,   // 🆕
       }));
     } else {
       // При переключении на другую игру - ставим стандартный режим
@@ -102,6 +134,8 @@ export default function Lobby() {
         ...prev,
         mode: "5v5",
         dotaGameMode: 22, // На всякий случай
+        region: "EU",   // 🆕
+        dotaRegion: 3,  // 🆕
       }));
     }
   }, [createForm.game]);
@@ -218,7 +252,8 @@ export default function Lobby() {
       spectators: [], 
       chat: [],
       bannedUsers: [],
-      dotaGameMode: createForm.dotaGameMode, // 🆕 Добавляем ID режима Dota 2
+      dotaGameMode: createForm.dotaGameMode,
+      dotaRegion: createForm.dotaRegion, 
     };
     
     const firstSlotIndex = newLobbyData.slots.findIndex(s => s.user === null);
@@ -260,6 +295,27 @@ export default function Lobby() {
       setCreateForm(prev => ({
         ...prev,
         mode: selectedValue,
+      }));
+    }
+  };
+
+    // 🆕 ОБРАБОТЧИК СМЕНЫ РЕГИОНА (для Dota 2 обновляем dotaRegion)
+  const handleRegionChange = (e) => {
+    const selectedValue = e.target.value;
+    
+    if (createForm.game === "Dota 2") {
+      const selectedRegion = DOTA2_REGIONS.find(r => r.value === selectedValue);
+      if (selectedRegion) {
+        setCreateForm(prev => ({
+          ...prev,
+          region: selectedValue,
+          dotaRegion: selectedRegion.region, // 🆕 Сохраняем числовой ID
+        }));
+      }
+    } else {
+      setCreateForm(prev => ({
+        ...prev,
+        region: selectedValue,
       }));
     }
   };
@@ -307,24 +363,29 @@ export default function Lobby() {
                     onChange={handleModeChange}
                     className="mt-1 px-3 py-2 bg-dark-bg border border-gray-600 rounded-md text-gray-200"
                   >
-                    {createForm.game === "Dota 2" ? (
-                      // 🆕 РЕЖИМЫ ДЛЯ DOTA 2
-                      DOTA2_MODES.map(mode => (
-                        <option key={mode.value} value={mode.value}>
-                          {mode.label}
-                        </option>
-                      ))
-                    ) : (
-                      // РЕЖИМЫ ДЛЯ ДРУГИХ ИГР
-                      GENERIC_MODES.filter(m => m !== 'All modes').map(m => (
-                        <option key={m} value={m}>{m}</option>
-                      ))
-                    )}
+                    {availableModes.map(m => (
+                      <option key={m.value || m} value={m.value || m}>
+                        {m.label || m}
+                      </option>
+                    ))}
                   </select>
                 </label>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <label className="flex flex-col text-gray-300">Регион<select value={createForm.region} onChange={(e) => setCreateForm((p) => ({ ...p, region: e.target.value }))} className="mt-1 px-3 py-2 bg-dark-bg border border-gray-600 rounded-md text-gray-200">{REGIONS.filter(r => r !== 'All regions').map(r => (<option key={r} value={r}>{r}</option>))}</select></label>
+                <label className="flex flex-col text-gray-300">
+                  Регион
+                  <select 
+                    value={createForm.region} 
+                    onChange={handleRegionChange}
+                    className="mt-1 px-3 py-2 bg-dark-bg border border-gray-600 rounded-md text-gray-200"
+                  >
+                    {availableRegions.map(r => (
+                      <option key={r.value || r} value={r.value || r}>
+                        {r.label || r}
+                      </option>
+                    ))}
+                  </select>
+                </label>
                 <label className="flex flex-col text-gray-300">Вход (USD)<input type="number" step="0.01" value={createForm.entryFee} onChange={(e) => setCreateForm((p) => ({ ...p, entryFee: e.target.value }))} className="mt-1 px-3 py-2 bg-dark-bg border border-gray-600 rounded-md text-gray-200"/></label>
               </div>
               <div className="border-t border-gray-700 pt-4">

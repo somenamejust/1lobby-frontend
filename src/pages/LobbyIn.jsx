@@ -118,24 +118,24 @@ export default function LobbyIn() {
   }, [lobbyId, user, navigate, leaveLobbySession]);
 
   // --- 3. useEffect: Этот эффект следит за состоянием `lobby` и решает, нужно ли перенаправлять пользователя.
-  useEffect(() => {
-    // Редирект после завершения игры
-    if (!lobby || isRedirecting || lobby.status !== 'finished') return;
+  // useEffect(() => {
+  //   // Редирект после завершения игры
+  //   if (!lobby || isRedirecting || lobby.status !== 'finished') return;
 
-    setIsRedirecting(true);
+  //   setIsRedirecting(true);
     
-    // 🆕 УБИРАЕМ АВТОМАТИЧЕСКИЙ РЕДИРЕКТ
-    // Пользователь сам закроет модальное окно
+  //   // 🆕 УБИРАЕМ АВТОМАТИЧЕСКИЙ РЕДИРЕКТ
+  //   // Пользователь сам закроет модальное окно
     
-    // toast.success("Игра завершена. Возвращение в лобби...");
-    // refreshUser().then(() => {
-    //   setTimeout(() => {
-    //     leaveLobbySession();
-    //     navigate('/lobby');
-    //   }, 4000);
-    // });
+  //   // toast.success("Игра завершена. Возвращение в лобби...");
+  //   // refreshUser().then(() => {
+  //   //   setTimeout(() => {
+  //   //     leaveLobbySession();
+  //   //     navigate('/lobby');
+  //   //   }, 4000);
+  //   // });
     
-  }, [lobby, isRedirecting]);
+  // }, [lobby, isRedirecting]);
 
   // --- 4. useEffect: эффект для МЕНЮ
   useEffect(() => {
@@ -454,10 +454,24 @@ return (
         </div>
       )}
 
-            {/* --- 👇 ДОБАВЛЯЕМ УСЛОВНЫЙ РЕНДЕР ПОП-АПА "ИГРА НАЧАЛАСЬ" 👇 --- */}
+      {/* --- 👇 ДОБАВЛЯЕМ УСЛОВНЫЙ РЕНДЕР ПОП-АПА "ИГРА НАЧАЛАСЬ" 👇 --- */}
       {lobby.status === 'in_progress' && (
         <GameInProgressModal 
-          hostControls={hostWinnerControls} />
+          hostControls={hostWinnerControls} 
+        />
+      )}
+
+      {/* 🆕 ДОБАВЬ МОДАЛЬНОЕ ОКНО ДЛЯ РЕЗУЛЬТАТОВ */}
+      {lobby.status === 'finished' && lobby.winner && (
+        <MatchResultsModal 
+          lobby={lobby}
+          onClose={() => {
+            refreshUser().then(() => {
+              leaveLobbySession();
+              navigate('/lobby');
+            });
+          }}
+        />
       )}
             
       {/* --- 👇 НОВЫЙ БАННЕР ЛОББИ 👇 --- */}
@@ -745,14 +759,6 @@ return (
 
         </div>
       </div>
-
-      {/* 🆕 МОДАЛЬНОЕ ОКНО С РЕЗУЛЬТАТАМИ */}
-      {showResults && (
-        <MatchResultsModal 
-          lobby={lobby} 
-          onClose={handleCloseResults} 
-        />
-      )}
     </>
   );
 }

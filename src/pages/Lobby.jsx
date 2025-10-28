@@ -145,7 +145,11 @@ export default function Lobby() {
     const fetchLobbies = async () => {
       try {
         const response = await axios.get('/api/lobbies');
-        setLobbies(response.data);
+        // 🆕 Фильтруем завершенные лобби на клиенте (на всякий случай)
+        const activeLobbies = response.data.filter(lobby => 
+          lobby.status !== 'finished' && lobby.status !== 'cancelled'
+        );
+        setLobbies(activeLobbies);
       } catch (error) {
         console.error("Ошибка при обновлении лобби:", error);
       } finally {

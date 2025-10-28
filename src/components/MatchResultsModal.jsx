@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 
 export default function MatchResultsModal({ lobby, onClose }) {
-  const [countdown, setCountdown] = useState(5);
+  const [countdown, setCountdown] = useState(60);
 
   useEffect(() => {
     if (countdown > 0) {
@@ -17,9 +17,25 @@ export default function MatchResultsModal({ lobby, onClose }) {
   if (!lobby || lobby.status !== 'finished') return null;
 
   const winningTeam = lobby.winner; // 'A' или 'B'
-  const winningTeamName = winningTeam === 'A' ? 'Radiant' : 'Dire';
-  const winners = lobby.slots.filter(s => s.user && s.team === winningTeam);
-  const losers = lobby.slots.filter(s => s.user && s.team !== winningTeam);
+
+    // 🆕 Умное определение названия команды
+  let winningTeamName = winningTeam;
+  if (lobby.game === 'Dota 2') {
+    winningTeamName = winningTeam; // Уже 'Radiant' или 'Dire'
+  } else {
+    winningTeamName = winningTeam === 'A' ? 'Team A' : 'Team B';
+  }
+
+  console.log('🎉 [MatchResultsModal] Открыто модальное окно');
+  console.log('   Игра:', lobby.game);
+  console.log('   Победитель:', lobby.winner);
+  console.log('   Слоты:', lobby.slots.map(s => ({ team: s.team, user: s.user?.username })));
+
+  const winners = lobby.slots.filter(s => s.user && s.team === lobby.winner).map(s => s.user);
+  const losers = lobby.slots.filter(s => s.user && s.team !== lobby.winner).map(s => s.user);
+
+  console.log('   Победители:', winners.map(w => w.username));
+  console.log('   Проигравшие:', losers.map(l => l.username));
 
   const totalPrizePool = lobby.entryFee * losers.length;
   const prizePerWinner = winners.length > 0 ? totalPrizePool / winners.length : 0;
@@ -32,7 +48,11 @@ export default function MatchResultsModal({ lobby, onClose }) {
         <div className="text-center mb-6">
           <h2 className="text-4xl font-bold text-white mb-2">🏆 Match Finished!</h2>
           <p className="text-xl text-gray-300">
-            Team <span className={winningTeam === 'A' ? 'text-blue-400' : 'text-red-400'}>
+            <span className={
+              lobby.game === 'Dota 2' 
+                ? (winningTeam === 'Radiant' ? 'text-green-400' : 'text-red-400')
+                : (winningTeam === 'A' ? 'text-blue-400' : 'text-red-400')
+            }>
               {winningTeamName}
             </span> won!
           </p>
@@ -70,10 +90,10 @@ export default function MatchResultsModal({ lobby, onClose }) {
               ✅ Winners (+${prizePerWinner.toFixed(2)})
             </h3>
             <div className="space-y-2">
-              {winners.map(slot => (
-                <div key={slot.user.id} className="flex items-center gap-2 bg-dark-bg p-2 rounded">
-                  <img src={slot.user.avatarUrl} alt="" className="w-8 h-8 rounded-full" />
-                  <span className="text-white text-sm">{slot.user.username}</span>
+              {winners.map(user => (
+                <div key={user.id} className="flex items-center gap-2 bg-dark-bg p-2 rounded">
+                  <img src={user.avatarUrl} alt="" className="w-8 h-8 rounded-full" />
+                  <span className="text-white text-sm">{user.username}</span>
                 </div>
               ))}
             </div>
@@ -85,10 +105,10 @@ export default function MatchResultsModal({ lobby, onClose }) {
               ❌ Losers (-${lobby.entryFee})
             </h3>
             <div className="space-y-2">
-              {losers.map(slot => (
-                <div key={slot.user.id} className="flex items-center gap-2 bg-dark-bg p-2 rounded">
-                  <img src={slot.user.avatarUrl} alt="" className="w-8 h-8 rounded-full" />
-                  <span className="text-white text-sm">{slot.user.username}</span>
+              {losers.map(user => (
+                <div key={user.id} className="flex items-center gap-2 bg-dark-bg p-2 rounded">
+                  <img src={user.avatarUrl} alt="" className="w-8 h-8 rounded-full" />
+                  <span className="text-white text-sm">{user.username}</span>
                 </div>
               ))}
             </div>
